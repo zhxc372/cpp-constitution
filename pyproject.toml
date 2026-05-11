@@ -19,6 +19,4 @@ cpp-constitution = "cpp_constitution.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.package-data]
-cpp_constitution = ["../templates/**/*"]
+include = ["cpp_constitution*"]

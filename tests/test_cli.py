@@ -68,7 +68,7 @@ def test_generate_no_exceptions():
 
 
 def test_generate_xmake_cursor():
-    """Cursor + xmake should generate _cursorrules + xmake.lua."""
+    """Cursor + xmake should generate .cursor/rules/ + xmake.lua."""
     with tempfile.TemporaryDirectory() as tmp:
         target = _run_generate(
             tmp, name="xmake-test",
@@ -79,8 +79,12 @@ def test_generate_xmake_cursor():
         content = (target / "xmake.lua").read_text()
         assert "c++23" in content
 
-        # Cursor rules file (hidden file .cursorrules)
-        assert (target / ".cursorrules").exists(), f".cursorrules not found, files: {list(target.iterdir())}"
+        # Cursor rules file (new .cursor/rules/ format)
+        rule_file = target / ".cursor" / "rules" / "cpp-review.mdc"
+        assert rule_file.exists(), f"Cursor rule not found, files: {list(target.rglob('*'))}"
+        # Should be self-contained (not reference .cpp-constitution/)
+        rule_content = rule_file.read_text()
+        assert "Review Priority" in rule_content
 
 
 def test_generate_generic():
@@ -97,9 +101,53 @@ def test_validate_script():
     with tempfile.TemporaryDirectory() as tmp:
         target = _run_generate(tmp, name="val-test")
 
-        script = target / "scripts" / "validate.sh"
+        script = target / ".cpp-constitution" / "scripts" / "validate.sh"
         assert script.exists()
         assert script.stat().st_mode & 0o111  # executable
+
+
+def test_clean_layout():
+    """Default layout should be clean — runtime hidden in .cpp-constitution/."""
+    with tempfile.TemporaryDirectory() as tmp:
+        target = _run_generate(tmp, name="clean-test")
+
+        # These should be in root
+        assert (target / "AGENTS.md").exists()
+        assert (target / "CONSTITUTION.md").exists()
+
+        # These should NOT be in root
+        assert not (target / "GOTCHAS.md").exists(), "GOTCHAS.md should be hidden"
+        assert not (target / "references").is_dir(), "references/ should be hidden"
+        assert not (target / "config").is_dir(), "config/ should be hidden"
+        assert not (target / "scripts").is_dir(), "scripts/ should be hidden"
+        assert not (target / "agents").is_dir(), "agents/ should be hidden"
+        assert not (target / "README.md").exists(), "README.md should not be generated"
+
+        # These should be in .cpp-constitution/
+        assert (target / ".cpp-constitution" / "GOTCHAS.md").exists()
+        assert (target / ".cpp-constitution" / "references").is_dir()
+        assert (target / ".cpp-constitution" / "config").is_dir()
+        assert (target / ".cpp-constitution" / "scripts" / "validate.sh").exists()
+
+
+def test_generate_trae():
+    """Trae should generate .trae/skills/ directory."""
+    with tempfile.TemporaryDirectory() as tmp:
+        target = _run_generate(tmp, name="trae-test", platform="trae")
+
+        skill = target / ".trae" / "skills" / "cpp-core-review" / "SKILL.md"
+        assert skill.exists(), f"Trae skill not found"
+
+
+def test_generate_copilot():
+    """Copilot should generate .github/copilot-instructions.md."""
+    with tempfile.TemporaryDirectory() as tmp:
+        target = _run_generate(tmp, name="copilot-test", platform="copilot")
+
+        rule = target / ".github" / "copilot-instructions.md"
+        assert rule.exists(), f"Copilot instructions not found"
+        content = rule.read_text()
+        assert "Review Priority" in content
 
 
 if __name__ == "__main__":
@@ -109,8 +157,11 @@ if __name__ == "__main__":
         test_generate_xmake_cursor,
         test_generate_generic,
         test_validate_script,
+        test_clean_layout,
+        test_generate_trae,
+        test_generate_copilot,
     ]
     for t in tests:
         t()
         print(f"✅ {t.__name__}")
-    print("\n🎉 All tests passed!")
+    print(f"\n🎉 All {len(tests)} tests passed!")
